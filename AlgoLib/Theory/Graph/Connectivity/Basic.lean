@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Huang.JiangYi (co/ Claude Opus 5), Basil Rohner, Sorrachai Yingchareonthawornchai
 -/
 import AlgoLib.Theory.Graph.Connectivity.Reachable
+import AlgoLib.Theory.Graph.Connectivity.Directed
 import AlgoLib.Theory.Graph.Connectivity.Components
 import AlgoLib.Theory.Graph.Connectivity.Cuts
 import AlgoLib.Theory.Graph.Connectivity.Connectivity
@@ -20,19 +21,25 @@ development, which is split across `AlgoLib/Theory/Connectivity/`:
 
 * `Reachable` — `SimpleGraph.Reachable`, its equivalence properties, the path witness,
   and `IsPreconnected` / `IsConnected`.
+* `Directed` — `SimpleDiGraph.Reachable` and the distance `SimpleDiGraph.dist`, the
+  undirected distance `SimpleGraph.dist` defined through the symmetric orientation
+  `SimpleGraph.toSimpleDiGraph`, and the transfer lemmas between the two.
 * `Components` — `componentOf`, `components`, `numComponents`, and the facts that make
   "more than one component" usable.
 * `Cuts` — the edge boundary `∂(G, S)`, vertex and edge cuts, cut vertices and cut
   edges, and separators between vertices and between sets of vertices.
 * `Connectivity` — `κ(G)` and `κ'(G)`, with the `girth`-style infimum API.
-* `Computable` — the computable reachability closure `reachableFinset`, the connected
-  components as a `Finset`, the four connectivity numbers as executable definitions, and
-  the `Decidable` instances for reachability, connectedness, cuts and separating sets.
+* `Computable` — the computable reachability closure `reachableFinset` and distance
+  `computeDist`, both by the breadth-first search of
+  `AlgoLib.Algorithms.Graph.Traversal.BFS`, the connected components as a `Finset`, the
+  four connectivity numbers as executable definitions, and the `Decidable` instances for
+  reachability, connectedness, cuts and separating sets.
 
 Downstream files should import this umbrella; the split is internal. The submodules form
 the acyclic spine `Reachable ← Components ← Cuts ← Connectivity`, on top of the deletion
 operations in `AlgoLib.Graph.Delete` and the walk development in
-`AlgoLib.Theory.Structures.InSimpleGraph`.
+`AlgoLib.Theory.Structures.InSimpleGraph`; `Directed` sits beside `Reachable`, and
+`Computable` closes the development by importing the search algorithm.
 
 ## Main definitions
 
@@ -51,7 +58,11 @@ Definitions based on lecture note "Graph Theory ETH 2026" by Benny Sudakov
   sets of vertices.
 * `SimpleGraph.vertexConnectivity G`, `SimpleGraph.edgeConnectivity G`, written `κ(G)`
   and `κ'(G)`.
-* `SimpleGraph.reachableFinset G u` — the computable counterpart of `componentOf`, and
+* `SimpleDiGraph.Reachable G u v`, `SimpleDiGraph.dist G u v`, `SimpleGraph.dist G u v` —
+  directed reachability and the distance, the undirected one through
+  `SimpleGraph.toSimpleDiGraph`.
+* `SimpleGraph.reachableFinset G u` — the computable counterpart of `componentOf`,
+  `SimpleGraph.computeDist G u v` — the computable counterpart of `dist`, and
   `SimpleGraph.computeVertexConnectivity G` — the computable counterpart of `κ(G)`.
 
 ## Notation

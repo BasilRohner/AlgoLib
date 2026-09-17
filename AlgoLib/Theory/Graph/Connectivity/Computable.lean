@@ -5,6 +5,7 @@ Authors: Huang.JiangYi (co/ Claude Opus 5)
 -/
 import AlgoLib.Theory.Graph.Decidable
 import AlgoLib.Theory.Graph.Connectivity.Connectivity
+import AlgoLib.Algorithms.Graph.Traversal.BFS
 import AlgoLib.Util.Finset
 
 /-!
@@ -15,8 +16,8 @@ over all subsets of an arbitrary type, so nothing in the connectivity developmen
 computes. This file supplies the executable counterparts, on a graph whose vertex set is
 finite as *data* and whose edge set has decidable membership:
 
-* reachability, as a `Finset` closure, and the `Decidable` instances it yields for
-  reachability, connectedness, cuts and separating sets;
+* reachability and distance, by breadth-first search, and the `Decidable` instances
+  reachability yields for connectedness, cuts and separating sets;
 * the connected components, as a `Finset` of `Finset`s;
 * the four connectivity numbers `κ(G)`, `κ'(G)` and the two cut numbers.
 
@@ -26,6 +27,7 @@ specifications, and every definition here is proved *equal* to the one it comput
 ## Main definitions
 
 * `SimpleGraph.reachableFinset G u` — the vertices reachable from `u`.
+* `SimpleGraph.computeDist G u v` — the distance from `u` to `v`.
 * `SimpleGraph.componentFinset G` — the connected components.
 * `SimpleGraph.computeNumComponents G` — their number.
 * `SimpleGraph.computeVertexConnectivity G` / `computeEdgeConnectivity G` /
@@ -35,6 +37,7 @@ specifications, and every definition here is proved *equal* to the one it comput
 
 * `SimpleGraph.mem_reachableFinset_iff` — `v ∈ G.reachableFinset u ↔ G.Reachable u v`;
   `SimpleGraph.coe_reachableFinset` identifies the closure with `componentOf`.
+* `SimpleGraph.computeDist_eq` — `= G.dist u v`.
 * `SimpleGraph.numComponents_eq_card` and `SimpleGraph.computeNumComponents_eq`.
 * `SimpleGraph.computeVertexConnectivity_eq` — `= κ(G)`; likewise for the other three.
 * `Decidable` instances for `Reachable`, `IsPreconnected`, `IsConnected`, `IsVertexCut`,
@@ -42,25 +45,23 @@ specifications, and every definition here is proved *equal* to the one it comput
 
 ## Design choices
 
-* **Iteration, not recursion.** `reachableFinset` iterates one breadth-first layer
-  `|V(G)| + 1` times rather than recursing to a fixed point. There is then no
-  termination obligation, no equation compiler, and the definition reduces, so `#eval`
-  and `decide` work. Correctness rests on `Finset.iterate_isFixed_of_inflationary`
-  (`AlgoLib.Util.Finset`): the iterate *is* a fixed point, hence closed under
-  adjacency, and completeness follows by induction on the `IsVertexSeqIn` derivation of
-  the witnessing walk — with no bound on its length, hence no `loopErase` and no
-  `[DecidableEq α]` inside a `Prop`, which is what
-  `AlgoLib.Theory.Connectivity.Reachable` set out to avoid.
+* **One search, not two.** Reachability and distance are computed by the breadth-first
+  search of `AlgoLib.Algorithms.Graph.Traversal.BFS`, run on the symmetric orientation
+  `G.toSimpleDiGraph`. The library thus has a single BFS, stated once for directed
+  graphs and proved correct once; this file only transports its correctness theorems
+  through `SimpleGraph.reachable_toSimpleDiGraph_iff`. The search iterates a fixed
+  number of rounds rather than recursing to a fixed point, so the definitions reduce and
+  `decide` works — see the design notes of the BFS file.
 * **One generic bridge for all four numbers.** Each connectivity number is an infimum of
   `Set.encard` over sets that are, by the first conjunct of their defining predicate,
   contained in `V(G)` or `E(G)`. `Set.iInf_encard_eq_minENat_powerset` turns exactly that
   shape into a minimum over a filtered powerset, so each of the four agreement
   theorems is a one-line corollary and the `⊤` convention is preserved on the nose
   (`vertexCutNumber Kₙ = ⊤` because `Kₙ` has no vertex cut).
-* **Complexity.** `reachableFinset` runs `|V(G)| + 1` layers even after stabilizing, and
-  the connectivity numbers enumerate all `2^|V(G)|` subsets, testing preconnectedness of
-  a deleted graph for each. This is a *specification that computes*, not an algorithm:
-  `decide` is realistic up to about six vertices. See `GraphAlgorithms` for real BFS.
+* **Complexity.** The search runs `|V(G)|` rounds even after the last layer has emptied,
+  and the connectivity numbers enumerate all `2^|V(G)|` subsets, testing preconnectedness
+  of a deleted graph for each. The latter is a *specification that computes*, not an
+  algorithm: `decide` is realistic up to about six vertices.
 -/
 
 namespace AlgoLib
@@ -74,114 +75,42 @@ namespace SimpleGraph
 variable {G : SimpleGraph α} [DecidableEq α] [Fintype G.vertexSet]
   [DecidablePred (· ∈ G.edgeSet)]
 
-/-! ## One breadth-first layer
+/-! ## Reachability, by breadth-first search
 
-`reachStep` and `reachStart` are the construction; the exported contract is
-`reachableFinset` together with `mem_reachableFinset_iff`. -/
+The search itself lives in `AlgoLib.Algorithms.Graph.Traversal.BFS` and is directed; an
+undirected graph is searched through its symmetric orientation, in which every edge is
+traversable both ways. The exported contract is `reachableFinset` together with
+`mem_reachableFinset_iff`. -/
 
-/-- One layer of breadth-first search: adjoin every neighbour of a vertex of `T`. -/
-private def reachStep (G : SimpleGraph α) [DecidableEq α] [Fintype G.vertexSet]
-    [DecidablePred (· ∈ G.edgeSet)] (T : Finset α) : Finset α :=
-  T ∪ T.biUnion G.computeNeighborFinset
-
-private lemma mem_reachStep {T : Finset α} {v : α} :
-    v ∈ G.reachStep T ↔ v ∈ T ∨ ∃ w ∈ T, G.Adj w v := by
-  simp [reachStep, Finset.mem_biUnion]
-
-private lemma subset_reachStep (T : Finset α) : T ⊆ G.reachStep T :=
-  Finset.subset_union_left
-
-private lemma reachStep_subset {T : Finset α} (hT : T ⊆ G.computeVertexFinset) :
-    G.reachStep T ⊆ G.computeVertexFinset :=
-  Finset.union_subset hT
-    (Finset.biUnion_subset.2 fun w _ => G.computeNeighborFinset_subset w)
-
-/-- The start set of the search from `u`: the singleton `{u}` if `u` is a vertex of `G`,
-and `∅` otherwise — nothing outside `V(G)` reaches anything. -/
-private def reachStart (G : SimpleGraph α) [DecidableEq α] [Fintype G.vertexSet]
-    [DecidablePred (· ∈ G.edgeSet)] (u : α) : Finset α :=
-  if u ∈ G.computeVertexFinset then {u} else ∅
-
-private lemma mem_reachStart {u v : α} : v ∈ G.reachStart u ↔ v = u ∧ u ∈ V(G) := by
-  unfold reachStart
-  split_ifs with h <;> simp_all
-
-private lemma reachStart_subset (u : α) : G.reachStart u ⊆ G.computeVertexFinset := by
-  unfold reachStart
-  split_ifs with h <;> simp [h]
-
-/-! ## The reachability closure -/
-
-/-- The vertices reachable from `u`, as a `Finset`: iterate one breadth-first layer from
-`{u}` often enough to reach a fixed point. -/
+/-- The vertices reachable from `u`, as a `Finset`: breadth-first search from `u` in the
+symmetric orientation of `G`. -/
 def reachableFinset (G : SimpleGraph α) [DecidableEq α] [Fintype G.vertexSet]
     [DecidablePred (· ∈ G.edgeSet)] (u : α) : Finset α :=
-  (G.reachStep)^[G.computeVertexFinset.card + 1] (G.reachStart u)
+  G.toSimpleDiGraph.bfsReachableFinset u
 
-lemma reachableFinset_subset (u : α) : G.reachableFinset u ⊆ G.computeVertexFinset :=
-  Finset.iterate_subset (fun _ h => reachStep_subset h) (reachStart_subset u) _
-
-lemma self_mem_reachableFinset {u : α} (hu : u ∈ V(G)) : u ∈ G.reachableFinset u :=
-  Finset.subset_iterate (fun _ => subset_reachStep _) _ (mem_reachStart.2 ⟨rfl, hu⟩)
-
-/-- The closure is a fixed point of the search step: this is the stabilization argument,
-and it is what makes the closure closed under adjacency. -/
-private lemma reachStep_reachableFinset (u : α) :
-    G.reachStep (G.reachableFinset u) = G.reachableFinset u :=
-  Finset.iterate_isFixed_of_inflationary (fun _ => subset_reachStep _)
-    (fun _ h => reachStep_subset h) (reachStart_subset u)
-
-lemma mem_reachableFinset_of_adj {u v w : α} (hw : w ∈ G.reachableFinset u)
-    (hadj : G.Adj w v) : v ∈ G.reachableFinset u := by
-  rw [← reachStep_reachableFinset u, mem_reachStep]
-  exact Or.inr ⟨w, hw, hadj⟩
-
-/-! ## Correctness -/
-
-private lemma reachable_of_mem_iterate {u : α} :
-    ∀ (n : ℕ) (v : α), v ∈ (G.reachStep)^[n] (G.reachStart u) → G.Reachable u v := by
-  intro n
-  induction n with
-  | zero =>
-    intro v hv
-    rw [Function.iterate_zero, id_eq, mem_reachStart] at hv
-    obtain ⟨rfl, hu⟩ := hv
-    exact Reachable.refl G hu
-  | succ n ih =>
-    intro v hv
-    rw [Function.iterate_succ_apply', mem_reachStep] at hv
-    rcases hv with hv | ⟨w, hw, hadj⟩
-    · exact ih v hv
-    · exact (ih w hw).trans hadj.reachable
+/-- The computable closure is exactly the set of vertices reachable from `u`: the
+correctness of BFS, transported along the symmetric orientation. -/
+@[simp] lemma mem_reachableFinset_iff {u v : α} :
+    v ∈ G.reachableFinset u ↔ G.Reachable u v := by
+  rw [reachableFinset, SimpleDiGraph.mem_bfsReachableFinset_iff, reachable_toSimpleDiGraph_iff]
 
 lemma reachable_of_mem_reachableFinset {u v : α} (h : v ∈ G.reachableFinset u) :
     G.Reachable u v :=
-  reachable_of_mem_iterate _ v h
-
-private lemma mem_reachableFinset_of_isVertexSeqIn {u : α} :
-    ∀ {w : VertexSeq α}, G.IsVertexSeqIn w → w.head = u →
-      w.tail ∈ G.reachableFinset u := by
-  intro w hw
-  induction hw with
-  | singleton x hx =>
-    intro hhead
-    simp only [VertexSeq.head_singleton] at hhead
-    subst hhead
-    exact self_mem_reachableFinset (by simpa using hx)
-  | cons w x hw hadj ih =>
-    intro hhead
-    rw [VertexSeq.head_cons] at hhead
-    exact mem_reachableFinset_of_adj (ih hhead) hadj
+  mem_reachableFinset_iff.1 h
 
 lemma mem_reachableFinset_of_reachable {u v : α} (h : G.Reachable u v) :
-    v ∈ G.reachableFinset u := by
-  obtain ⟨w, hw, rfl, rfl⟩ := h
-  exact mem_reachableFinset_of_isVertexSeqIn hw rfl
+    v ∈ G.reachableFinset u :=
+  mem_reachableFinset_iff.2 h
 
-/-- The computable closure is exactly the set of vertices reachable from `u`. -/
-@[simp] lemma mem_reachableFinset_iff {u v : α} :
-    v ∈ G.reachableFinset u ↔ G.Reachable u v :=
-  ⟨reachable_of_mem_reachableFinset, mem_reachableFinset_of_reachable⟩
+lemma reachableFinset_subset (u : α) : G.reachableFinset u ⊆ G.computeVertexFinset :=
+  fun _ hv => by simpa using (mem_reachableFinset_iff.1 hv).right_mem
+
+lemma self_mem_reachableFinset {u : α} (hu : u ∈ V(G)) : u ∈ G.reachableFinset u :=
+  mem_reachableFinset_iff.2 (Reachable.refl G hu)
+
+lemma mem_reachableFinset_of_adj {u v w : α} (hw : w ∈ G.reachableFinset u)
+    (hadj : G.Adj w v) : v ∈ G.reachableFinset u :=
+  mem_reachableFinset_iff.2 ((mem_reachableFinset_iff.1 hw).trans hadj.reachable)
 
 /-- The closure, as a set, is the connected component of `u`. -/
 @[simp] lemma coe_reachableFinset (u : α) :
@@ -192,6 +121,19 @@ lemma mem_reachableFinset_of_reachable {u v : α} (h : G.Reachable u v) :
 /-- Reachability is decidable. -/
 instance instDecidableReachable (u v : α) : Decidable (G.Reachable u v) :=
   decidable_of_iff _ mem_reachableFinset_iff
+
+/-! ## Distance -/
+
+/-- The distance from `u` to `v`, computed by breadth-first search in the symmetric
+orientation of `G`. -/
+def computeDist (G : SimpleGraph α) [DecidableEq α] [Fintype G.vertexSet]
+    [DecidablePred (· ∈ G.edgeSet)] (u v : α) : ℕ∞ :=
+  G.toSimpleDiGraph.bfsDist u v
+
+/-- The computed distance is the distance: BFS is correct, and `SimpleGraph.dist` *is* the
+distance in the symmetric orientation. -/
+theorem computeDist_eq {u v : α} : G.computeDist u v = G.dist u v :=
+  SimpleDiGraph.bfsDist_eq_dist
 
 /-! ## Connectedness -/
 
@@ -376,6 +318,10 @@ example : pathG.IsConnected := by decide
 example : pathG.IsCutVertex 1 := by decide
 example : ¬ pathG.IsCutVertex 0 := by decide
 example : pathG.computeNumComponents = 1 := by decide
+example : pathG.computeDist 0 2 = 2 := by decide
+example : pathG.computeDist 2 0 = 2 := by decide
+example : pathG.dist 0 2 = 2 := by
+  rw [← computeDist_eq]; decide
 
 -- Removing the middle vertex, or either edge, disconnects a path.
 example : pathG.computeVertexConnectivity = 1 := by decide
@@ -403,6 +349,7 @@ example : splitG.reachableFinset 3 = {3} := by decide
 example : ¬ splitG.Reachable 0 3 := by decide
 example : ¬ splitG.IsPreconnected := by decide
 example : splitG.computeNumComponents = 2 := by decide
+example : splitG.computeDist 0 3 = ⊤ := by decide
 
 -- A disconnected graph is separated by the empty set.
 example : splitG.computeVertexConnectivity = 0 := by decide

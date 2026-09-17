@@ -51,6 +51,14 @@ preferred API restates these in terms of `V(G)` and `E(G)`:
 * `SimpleDiGraph.toDiGraph`: forget the looplessness axiom of a simple directed graph.
 
 The corresponding `Coe` instances are registered.
+
+## Symmetric orientation
+
+* `SimpleGraph.toSimpleDiGraph`: the *symmetric orientation* of a simple graph, in which
+  every edge `s(u, v)` becomes the two arcs `(u, v)` and `(v, u)`. This is how the
+  undirected library reuses directed developments — reachability, distance,
+  breadth-first search — instead of duplicating them. It is not registered as a
+  coercion: an undirected graph should be viewed as directed only on purpose.
 -/
 
 namespace AlgoLib
@@ -139,6 +147,28 @@ instance : Coe (SimpleGraph α) (Graph α (Sym2 α)) := ⟨SimpleGraph.toGraph�
 
 instance : Coe (SimpleDiGraph α) (DiGraph α (α × α)) := ⟨SimpleDiGraph.toDiGraph⟩
 
+/-- The *symmetric orientation* of a simple graph: the simple directed graph on the same
+vertices whose arcs are the ordered pairs `(u, v)` with `s(u, v)` an edge of `G`. Every
+edge thus contributes exactly the two arcs `(u, v)` and `(v, u)`.
+
+Walks, reachability and distances in `G` coincide with those in `G.toSimpleDiGraph`
+(see `AlgoLib.Theory.Graph.Connectivity.Directed`), which lets the undirected theory reuse
+the directed one — in particular breadth-first search — rather than duplicating it. -/
+def SimpleGraph.toSimpleDiGraph (G : SimpleGraph α) : SimpleDiGraph α where
+  vertexSet := G.vertexSet
+  edgeSet := {a | s(a.1, a.2) ∈ G.edgeSet}
+  incidence' := fun a ha =>
+    ⟨G.incidence' _ ha a.1 (Sym2.mem_mk_left _ _), G.incidence' _ ha a.2 (Sym2.mem_mk_right _ _)⟩
+  loopless' := fun _ ha h => G.loopless' _ ha (Sym2.mk_isDiag_iff.2 h)
+
+@[simp] lemma SimpleGraph.vertexSet_toSimpleDiGraph (G : SimpleGraph α) :
+    G.toSimpleDiGraph.vertexSet = G.vertexSet := rfl
+
+/-- An ordered pair is an arc of the symmetric orientation exactly when the unordered
+pair is an edge. -/
+@[simp] lemma SimpleGraph.mem_edgeSet_toSimpleDiGraph (G : SimpleGraph α) {a : α × α} :
+    a ∈ G.toSimpleDiGraph.edgeSet ↔ s(a.1, a.2) ∈ G.edgeSet := Iff.rfl
+
 /-- Typeclass for graph-like structures that have a vertex set. -/
 class HasVertexSet (G : Type*) (V : outParam Type*) where
   /-- The vertex set of the graph. -/
@@ -203,5 +233,9 @@ theorem SimpleDiGraph.incidence (G : SimpleDiGraph α) {e : α × α} (he : e �
 theorem SimpleDiGraph.loopless (G : SimpleDiGraph α) {e : α × α} (he : e ∈ E(G)) :
     e.1 ≠ e.2 :=
   G.loopless' e he
+
+/-- The symmetric orientation has the same vertices, in the `V(·)` notation. -/
+@[simp] lemma SimpleGraph.mem_vertexSet_toSimpleDiGraph_iff (G : SimpleGraph α) {v : α} :
+    v ∈ V(G.toSimpleDiGraph) ↔ v ∈ V(G) := Iff.rfl
 
 end AlgoLib

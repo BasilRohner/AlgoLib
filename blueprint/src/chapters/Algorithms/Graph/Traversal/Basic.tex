@@ -1,2 +1,101 @@
-% Mirrors `AlgoLib.Algorithms.Graph.Traversal.Basic`
+% Mirrors `AlgoLib.Algorithms.Graph.Traversal.*`
 %
+\subsection{Breadth-first search}
+% Mirrors `AlgoLib.Algorithms.Graph.Traversal.BFS`
+
+Throughout, $G$ is a simple directed graph whose vertex set $\V{G}$ is finite and given as
+data, and whose arc membership is decidable. Undirected graphs are searched through their
+symmetric orientation (Definition~\ref{def:symmetric-orientation}), so one search serves
+both kinds of graph.
+
+\begin{definition}[BFS layers]
+  \label{def:bfs-layers}
+  \lean{AlgoLib.SimpleDiGraph.bfsLayer, AlgoLib.SimpleDiGraph.bfsVisited}
+  \leanok
+  Let $s \in \V{G}$. The \emph{layers} of breadth-first search from $s$ are the sets
+  \[
+    L_0 = \{s\}, \qquad
+    L_{k+1} = N^+(L_k) \setminus (L_0 \cup \dots \cup L_k),
+  \]
+  where $N^+(L)$ denotes the set of out-neighbours of the vertices of $L$. The set of
+  vertices \emph{visited} within $k$ rounds is $V_k = L_0 \cup \dots \cup L_k$. When
+  $s \notin \V{G}$ every layer is empty.
+  In Lean the search is a state $(V_k, L_k)$ iterated $k$ times from $(\{s\}, \{s\})$,
+  so that the definition reduces and \texttt{decide} can evaluate it.
+\end{definition}
+
+\begin{lemma}[Soundness]
+  \label{lem:bfs-sound}
+  \lean{AlgoLib.SimpleDiGraph.exists_walk_of_mem_bfsLayer}
+  \leanok
+  \uses{def:bfs-layers}
+  Every vertex of $L_k$ is the endpoint of a walk of length $k$ from $s$.
+\end{lemma}
+\begin{proof}
+  \leanok
+  By induction on $k$: a vertex of $L_{k+1}$ is an out-neighbour of a vertex of $L_k$,
+  and appending that arc to the walk given by the induction hypothesis yields a walk of
+  length $k + 1$.
+\end{proof}
+
+\begin{lemma}[Completeness]
+  \label{lem:bfs-complete}
+  \lean{AlgoLib.SimpleDiGraph.mem_bfsVisited_of_isVertexSeqIn}
+  \leanok
+  \uses{def:bfs-layers}
+  The endpoint of a walk of length $\ell$ from $s$ lies in $V_\ell$.
+\end{lemma}
+\begin{proof}
+  \leanok
+  By induction on the walk. The key step is that the out-neighbours of a vertex of $V_k$
+  lie in $V_{k+1}$: such a vertex lies in some $L_j$ with $j \le k$, and its
+  out-neighbours are either already in $V_j$ or in $L_{j+1}$.
+\end{proof}
+
+\begin{lemma}[Termination]
+  \label{lem:bfs-termination}
+  \lean{AlgoLib.SimpleDiGraph.lt_card_of_nonempty_bfsLayer}
+  \leanok
+  \uses{def:bfs-layers}
+  If $L_k \neq \emptyset$ then $k < |\V{G}|$. Hence the search from $s$ has exhausted every
+  layer after $|\V{G}|$ rounds.
+\end{lemma}
+\begin{proof}
+  \leanok
+  An empty layer is followed by an empty layer, so $L_0, \dots, L_k$ are all non-empty.
+  They are pairwise disjoint subsets of $\V{G}$, so $k + 1 \le |V_k| \le |\V{G}|$.
+\end{proof}
+
+\begin{theorem}[The layers are the spheres]
+  \label{thm:bfs-layers-spheres}
+  \lean{AlgoLib.SimpleDiGraph.mem_bfsLayer_iff_dist_eq}
+  \leanok
+  \uses{def:bfs-layers, def:dist}
+  For every vertex $v$ and every $k \in \N$,
+  \[
+    v \in L_k \iff \dist(s, v) = k .
+  \]
+\end{theorem}
+\begin{proof}
+  \leanok
+  \uses{lem:bfs-sound, lem:bfs-complete}
+  If $v \in L_k$ then $\dist(s, v) \le k$ by soundness, and $\dist(s, v) > k - 1$
+  because a walk of length at most $k - 1$ would place $v$ in $V_{k-1}$, which $L_k$
+  avoids by construction. Conversely, if $\dist(s, v) = k$ then a shortest walk places
+  $v \in V_k$, so $v \in L_j$ for some $j \le k$, and the first part gives $j = k$.
+\end{proof}
+
+\begin{theorem}[BFS computes reachability and distance]
+  \label{thm:bfs-correct}
+  \lean{AlgoLib.SimpleDiGraph.mem_bfsReachableFinset_iff, AlgoLib.SimpleDiGraph.bfsDist_eq_dist}
+  \leanok
+  \uses{def:bfs-layers, def:reachable-directed, def:dist}
+  The set $V_{|\V{G}|}$ is exactly the set of vertices reachable from $s$, and the least
+  $k < |\V{G}|$ with $v \in L_k$ (or $\infty$ if there is none) is exactly $\dist(s, v)$.
+\end{theorem}
+\begin{proof}
+  \leanok
+  \uses{lem:bfs-sound, lem:bfs-complete, lem:bfs-termination}
+  Soundness gives one inclusion and one inequality; completeness together with the
+  termination bound gives the other.
+\end{proof}

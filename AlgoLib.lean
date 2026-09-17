@@ -8,6 +8,7 @@ import AlgoLib.Theory.Graph.Connectivity.Components
 import AlgoLib.Theory.Graph.Connectivity.Computable
 import AlgoLib.Theory.Graph.Connectivity.Connectivity
 import AlgoLib.Theory.Graph.Connectivity.Cuts
+import AlgoLib.Theory.Graph.Connectivity.Directed
 import AlgoLib.Theory.Graph.Connectivity.Reachable
 import AlgoLib.Theory.Graph.Decidable
 import AlgoLib.Theory.Graph.Degree
@@ -68,6 +69,7 @@ import AlgoLib.Algorithms.Graph.MST.Basic
 import AlgoLib.Algorithms.Graph.SCC.Basic
 import AlgoLib.Algorithms.Graph.Search.Basic
 import AlgoLib.Algorithms.Graph.ShortestPath.Basic
+import AlgoLib.Algorithms.Graph.Traversal.BFS
 import AlgoLib.Algorithms.Graph.Traversal.Basic
 
 -- Data structures
