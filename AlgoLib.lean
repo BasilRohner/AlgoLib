@@ -5,7 +5,6 @@ import AlgoLib.Theory.Graph.Basic'
 import AlgoLib.Theory.Graph.Coloring.Basic
 import AlgoLib.Theory.Graph.Connectivity.Basic
 import AlgoLib.Theory.Graph.Connectivity.Components
-import AlgoLib.Theory.Graph.Connectivity.Computable
 import AlgoLib.Theory.Graph.Connectivity.Connectivity
 import AlgoLib.Theory.Graph.Connectivity.Cuts
 import AlgoLib.Theory.Graph.Connectivity.Directed
@@ -64,6 +63,7 @@ import AlgoLib.Theory.Graph.Structures.Walk
 import AlgoLib.Theory.Graph.Subgraph
 
 -- Algorithms
+import AlgoLib.Algorithms.Graph.Connectivity.Basic
 import AlgoLib.Algorithms.Graph.Flow.Basic
 import AlgoLib.Algorithms.Graph.MST.Basic
 import AlgoLib.Algorithms.Graph.SCC.Basic

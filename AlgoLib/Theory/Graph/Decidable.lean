@@ -20,7 +20,7 @@ procedures*: adjacency becomes decidable, and the deletion operations of
 graph, so that a predicate about `G.deleteVertices S` is decidable whenever the
 corresponding predicate about `G` is.
 
-Reachability and connectedness are decided in `AlgoLib.Theory.Connectivity.Computable`,
+Reachability and connectedness are decided in `AlgoLib.Algorithms.Graph.Connectivity.Basic`,
 on top of what is here and of the breadth-first search in
 `AlgoLib.Algorithms.Graph.Traversal.BFS`.
 

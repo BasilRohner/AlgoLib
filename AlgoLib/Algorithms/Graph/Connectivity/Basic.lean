@@ -24,6 +24,12 @@ finite as *data* and whose edge set has decidable membership:
 Nothing in the `Set` / `ℕ∞`-valued development changes: those definitions are the
 specifications, and every definition here is proved *equal* to the one it computes.
 
+This file lives under `AlgoLib.Algorithms`, not `AlgoLib.Theory`, because reachability is
+decided by the breadth-first search of `AlgoLib.Algorithms.Graph.Traversal.BFS` and
+everything else here depends on that decision procedure. The specifications it is checked
+against are the theory umbrella `AlgoLib.Theory.Graph.Connectivity.Basic`; the theory tree
+never imports the algorithms tree.
+
 ## Main definitions
 
 * `SimpleGraph.reachableFinset G u` — the vertices reachable from `u`.

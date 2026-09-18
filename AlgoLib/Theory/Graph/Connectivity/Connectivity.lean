@@ -91,13 +91,15 @@ disconnects `G` or leaves at most one vertex.
 
 It is `⊤` exactly when no set of vertices does either — for instance in an infinite
 complete graph. See `IsVertexSeparating` for the convention on complete graphs.
-The computable counterpart `computeVertexConnectivity` is available in `./Computable.lean`. -/
+The computable counterpart `computeVertexConnectivity` is available in
+`AlgoLib.Algorithms.Graph.Connectivity.Basic`. -/
 noncomputable def vertexConnectivity (G : SimpleGraph α) : ℕ∞ :=
   ⨅ (S : Set α) (_ : G.IsVertexSeparating S), S.encard
 
 /-- The *edge connectivity* `κ'(G)`: the least number of edges whose deletion
 disconnects `G`, with the convention `κ'(G) = 0` when `G` has at most one vertex.
-The computable counterpart `computeEdgeConnectivity` is available in `./Computable.lean`. -/
+The computable counterpart `computeEdgeConnectivity` is available in
+`AlgoLib.Algorithms.Graph.Connectivity.Basic`. -/
 noncomputable def edgeConnectivity (G : SimpleGraph α) : ℕ∞ :=
   ⨅ (F : Set (Sym2 α)) (_ : G.IsEdgeSeparating F), F.encard
 
@@ -279,13 +281,15 @@ comparison and are *degenerate on complete graphs*: `Kₙ` has no vertex cut at 
 
 Degenerate on complete graphs, which have no vertex cut: `vertexCutNumber Kₙ = ⊤`,
 whereas `κ(Kₙ) = n - 1`.
-The computable counterpart `computeVertexCutNumber` is available in `./Computable.lean`. -/
+The computable counterpart `computeVertexCutNumber` is available in
+`AlgoLib.Algorithms.Graph.Connectivity.Basic`. -/
 noncomputable def vertexCutNumber (G : SimpleGraph α) : ℕ∞ :=
   ⨅ (S : Set α) (_ : G.IsVertexCut S), S.encard
 
 /-- The least size of an edge cut of `G`. Degenerate on graphs with at most one vertex,
 which have no edge cut.
-The computable counterpart `computeEdgeCutNumber` is available in `./Computable.lean`. -/
+The computable counterpart `computeEdgeCutNumber` is available in
+`AlgoLib.Algorithms.Graph.Connectivity.Basic`. -/
 noncomputable def edgeCutNumber (G : SimpleGraph α) : ℕ∞ :=
   ⨅ (F : Set (Sym2 α)) (_ : G.IsEdgeCut F), F.encard
 

@@ -79,10 +79,12 @@ both kinds of graph.
 \begin{proof}
   \leanok
   \uses{lem:bfs-sound, lem:bfs-complete}
-  If $v \in L_k$ then $\dist(s, v) \le k$ by soundness, and $\dist(s, v) > k - 1$
-  because a walk of length at most $k - 1$ would place $v$ in $V_{k-1}$, which $L_k$
-  avoids by construction. Conversely, if $\dist(s, v) = k$ then a shortest walk places
-  $v \in V_k$, so $v \in L_j$ for some $j \le k$, and the first part gives $j = k$.
+  Let $v \in L_k$. Soundness gives $\dist(s, v) \le k$. For the reverse inequality there
+  is nothing to show when $k = 0$; when $k = j + 1$, a walk from $s$ to $v$ of length at
+  most $j$ would place $v$ in $V_j$ by completeness, whereas $L_{j+1}$ avoids $V_j$ by
+  construction, so $\dist(s, v) > j$, i.e. $\dist(s, v) \ge k$. Conversely, if
+  $\dist(s, v) = k$ then a shortest walk places $v \in V_k$, so $v \in L_j$ for some
+  $j \le k$, and the first part gives $j = k$.
 \end{proof}
 
 \begin{theorem}[BFS computes reachability and distance]

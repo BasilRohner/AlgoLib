@@ -5,7 +5,6 @@ Authors: Huang.JiangYi (co/ Claude Fable 5.1)
 -/
 import AlgoLib.Theory.Graph.Decidable
 import AlgoLib.Theory.Graph.Connectivity.Directed
-import AlgoLib.Util.Finset
 
 /-!
 # Breadth-first search
@@ -32,6 +31,7 @@ arcs have decidable membership, and proves it correct against the specifications
   components.
 * `SimpleDiGraph.bfsReachableFinset G s` — the vertices reachable from `s`: the visited
   set after `|V(G)|` rounds.
+* `SimpleDiGraph.bfsLayers G s` — the list of all layers, collected by one run.
 * `SimpleDiGraph.bfsDist G s v` — the distance from `s` to `v`: the index of the layer
   containing `v`, or `⊤` if there is none.
 
@@ -62,8 +62,9 @@ arcs have decidable membership, and proves it correct against the specifications
   a partial function `α → ℕ∞`: the frontier *is* the current sphere, so the level
   invariant "every frontier vertex is at distance `k`" is a statement about a `Finset`
   and needs no bookkeeping over an accumulated map. The distance is read off afterwards
-  as the least layer index containing the vertex, using `Finset.minENat` from
-  `AlgoLib.Util.Finset` — the same device that makes the connectivity numbers compute.
+  as the index of the first layer containing the vertex, in the list of layers
+  `bfsLayers` that a single run of the search collects — so a distance query runs the
+  search once, not once per candidate index.
 * **Walks, not paths, in the correctness statements**, matching `dist`. Soundness builds
   a walk by appending one arc per round; completeness inducts on the `IsVertexSeqIn`
   derivation of an arbitrary walk, so no cycle erasure is ever needed.
@@ -132,12 +133,28 @@ def bfsReachableFinset (G : SimpleDiGraph α) [DecidableEq α] [Fintype G.vertex
     [DecidablePred (· ∈ G.edgeSet)] (s : α) : Finset α :=
   G.bfsVisited s G.computeVertexFinset.card
 
-/-- The distance from `s` to `v`, computed by breadth-first search: the least index of a
-layer containing `v`, and `⊤` if no layer does. Only the indices below `|V(G)|` need to be
-inspected, since no later layer is non-empty. -/
+/-- The first `m` layers of the search started in state `S`, collected along a single run:
+`[S.frontier, (bfsStep S).frontier, …]`. -/
+def bfsLayersFrom (G : SimpleDiGraph α) [DecidableEq α] [Fintype G.vertexSet]
+    [DecidablePred (· ∈ G.edgeSet)] : ℕ → BFSState α → List (Finset α)
+  | 0, _ => []
+  | m + 1, S => S.frontier :: G.bfsLayersFrom m (G.bfsStep S)
+
+/-- All the layers of the search from `s`, as the list `[L₀, …, L_{|V(G)|-1}]`, computed by
+one run of the search. Every later layer is empty (`lt_card_of_nonempty_bfsLayer`), so
+nothing is lost by stopping there. -/
+def bfsLayers (G : SimpleDiGraph α) [DecidableEq α] [Fintype G.vertexSet]
+    [DecidablePred (· ∈ G.edgeSet)] (s : α) : List (Finset α) :=
+  G.bfsLayersFrom G.computeVertexFinset.card (G.bfsStart s)
+
+/-- The distance from `s` to `v`, computed by breadth-first search: the index of the first
+layer containing `v`, and `⊤` if no layer does. The layers come from a single run of the
+search (`bfsLayers`). -/
 def bfsDist (G : SimpleDiGraph α) [DecidableEq α] [Fintype G.vertexSet]
     [DecidablePred (· ∈ G.edgeSet)] (s v : α) : ℕ∞ :=
-  ((Finset.range G.computeVertexFinset.card).filter fun k => v ∈ G.bfsLayer s k).minENat
+  match (G.bfsLayers s).findIdx? (fun L => decide (v ∈ L)) with
+  | some k => k
+  | none => ⊤
 
 variable {G : SimpleDiGraph α} [DecidableEq α] [Fintype G.vertexSet]
   [DecidablePred (· ∈ G.edgeSet)] {s v : α}
@@ -400,18 +417,104 @@ theorem mem_bfsLayer_iff_dist_eq (k : ℕ) : v ∈ G.bfsLayer s k ↔ G.dist s v
   have hjk : j = k := by exact_mod_cast (dist_eq_of_mem_bfsLayer hvj).symm.trans hd
   exact hjk ▸ hvj
 
+/-! ## The list of layers -/
+
+lemma length_bfsLayersFrom (m : ℕ) (S : BFSState α) : (G.bfsLayersFrom m S).length = m := by
+  induction m generalizing S with
+  | zero => rfl
+  | succ m ih => simp [bfsLayersFrom, ih]
+
+/-- The `k`-th entry of the collected layers is the frontier after `k` rounds. -/
+lemma getElem_bfsLayersFrom (m : ℕ) (S : BFSState α) {k : ℕ} (hk : k < m) :
+    (G.bfsLayersFrom m S)[k]'(by rw [length_bfsLayersFrom]; exact hk) =
+      ((G.bfsStep)^[k] S).frontier := by
+  induction m generalizing S k with
+  | zero => exact absurd hk (Nat.not_lt_zero k)
+  | succ m ih =>
+    cases k with
+    | zero => rfl
+    | succ k =>
+      simp only [bfsLayersFrom, List.getElem_cons_succ, Function.iterate_succ_apply]
+      exact ih _ (Nat.lt_of_succ_lt_succ hk)
+
+@[simp] lemma length_bfsLayers : (G.bfsLayers s).length = G.computeVertexFinset.card :=
+  length_bfsLayersFrom _ _
+
+/-- The `k`-th collected layer is the `k`-th layer. -/
+lemma getElem_bfsLayers {k : ℕ} (hk : k < G.computeVertexFinset.card) :
+    (G.bfsLayers s)[k]'(by rw [length_bfsLayers]; exact hk) = G.bfsLayer s k :=
+  getElem_bfsLayersFrom _ _ hk
+
+/-- The collected layers are exactly the layers of index below `|V(G)|`. -/
+lemma mem_bfsLayers_iff {L : Finset α} :
+    L ∈ G.bfsLayers s ↔ ∃ k < G.computeVertexFinset.card, G.bfsLayer s k = L := by
+  rw [List.mem_iff_getElem]
+  constructor
+  · rintro ⟨k, hk, rfl⟩
+    rw [length_bfsLayers] at hk
+    exact ⟨k, hk, (getElem_bfsLayers hk).symm⟩
+  · rintro ⟨k, hk, rfl⟩
+    exact ⟨k, by rw [length_bfsLayers]; exact hk, getElem_bfsLayers hk⟩
+
+/-! ## The computed distance -/
+
+/-- Two layers of different index are disjoint: the later one avoids everything visited
+before it, and the earlier one has been visited. -/
+lemma disjoint_bfsLayer_of_lt {j k : ℕ} (h : j < k) :
+    Disjoint (G.bfsLayer s j) (G.bfsLayer s k) := by
+  obtain ⟨m, rfl⟩ := Nat.exists_eq_add_of_lt h
+  exact Finset.disjoint_of_subset_left
+    ((bfsLayer_subset_bfsVisited j).trans (bfsVisited_mono (Nat.le_add_right j m)))
+    (disjoint_bfsLayer_succ_bfsVisited (j + m)).symm
+
+/-- A vertex lies in at most one layer. -/
+lemma eq_of_mem_bfsLayer {j k : ℕ} (hj : v ∈ G.bfsLayer s j) (hk : v ∈ G.bfsLayer s k) :
+    j = k := by
+  by_contra hne
+  rcases Nat.lt_or_gt_of_ne hne with h | h
+  · exact Finset.disjoint_left.1 (disjoint_bfsLayer_of_lt h) hj hk
+  · exact Finset.disjoint_left.1 (disjoint_bfsLayer_of_lt h) hk hj
+
+/-- The computed distance is `k` exactly when `v` lies in the `k`-th layer. -/
+theorem bfsDist_eq_coe_iff {k : ℕ} : G.bfsDist s v = k ↔ v ∈ G.bfsLayer s k := by
+  unfold bfsDist
+  rcases hfind : (G.bfsLayers s).findIdx? (fun L => decide (v ∈ L)) with _ | j
+  · simp only [ENat.top_ne_coe, false_iff]
+    intro hv
+    have hlt := lt_card_of_nonempty_bfsLayer ⟨v, hv⟩
+    have := List.findIdx?_eq_none_iff.1 hfind _ (mem_bfsLayers_iff.2 ⟨k, hlt, rfl⟩)
+    simp [hv] at this
+  · obtain ⟨hj, hvj, -⟩ := List.findIdx?_eq_some_iff_getElem.1 hfind
+    rw [length_bfsLayers] at hj
+    rw [getElem_bfsLayers hj, decide_eq_true_iff] at hvj
+    simp only [Nat.cast_inj]
+    exact ⟨fun h => h ▸ hvj, fun hk => eq_of_mem_bfsLayer hvj hk⟩
+
+/-- The computed distance is infinite exactly when no layer contains `v`. -/
+theorem bfsDist_eq_top_iff_forall : G.bfsDist s v = ⊤ ↔ ∀ k, v ∉ G.bfsLayer s k := by
+  constructor
+  · intro htop k hv
+    have := bfsDist_eq_coe_iff.2 hv
+    rw [htop] at this
+    exact ENat.top_ne_coe k this
+  · intro h
+    unfold bfsDist
+    rcases hfind : (G.bfsLayers s).findIdx? (fun L => decide (v ∈ L)) with _ | j
+    · rfl
+    · obtain ⟨hj, hvj, -⟩ := List.findIdx?_eq_some_iff_getElem.1 hfind
+      rw [length_bfsLayers] at hj
+      rw [getElem_bfsLayers hj, decide_eq_true_iff] at hvj
+      exact absurd hvj (h j)
+
 /-- **BFS computes the distance.** -/
 theorem bfsDist_eq_dist : G.bfsDist s v = G.dist s v := by
-  refine le_antisymm (le_dist_iff.2 fun w hw hhead htail => ?_) (Finset.le_minENat_iff.2 ?_)
-  · have htail' : w.val.tail = v := htail
-    have hvis := mem_bfsVisited_of_isVertexSeqIn hw hhead
-    rw [htail'] at hvis
-    obtain ⟨j, hj, hjlt, hvj⟩ := exists_bfsLayer_lt_card_of_mem_bfsVisited hvis
-    calc G.bfsDist s v ≤ (j : ℕ∞) :=
-          Finset.minENat_le (Finset.mem_filter.2 ⟨Finset.mem_range.2 hjlt, hvj⟩)
-      _ ≤ (w.length : ℕ∞) := by exact_mod_cast hj
-  · intro k hk
-    exact dist_le_of_mem_bfsLayer (Finset.mem_filter.1 hk).2
+  by_cases hr : G.Reachable s v
+  · obtain ⟨k, hk⟩ := WithTop.ne_top_iff_exists.1 (reachable_iff_dist_ne_top.1 hr)
+    rw [← hk]
+    exact bfsDist_eq_coe_iff.2 ((mem_bfsLayer_iff_dist_eq k).2 hk.symm)
+  · rw [dist_eq_top_iff.2 hr]
+    exact bfsDist_eq_top_iff_forall.2 fun k hk =>
+      hr (reachable_of_mem_bfsVisited (bfsLayer_subset_bfsVisited k hk))
 
 /-- The distance is infinite exactly when BFS never reaches the vertex. -/
 theorem bfsDist_eq_top_iff : G.bfsDist s v = ⊤ ↔ v ∉ G.bfsReachableFinset s := by
@@ -420,7 +523,7 @@ theorem bfsDist_eq_top_iff : G.bfsDist s v = ⊤ ↔ v ∉ G.bfsReachableFinset 
 /-! ## Smoke tests
 
 Concrete evaluation on a small directed graph, confirming that the search really reduces
-in the kernel. As in `AlgoLib.Theory.Graph.Connectivity.Computable`, the `Fintype` and
+in the kernel. As in `AlgoLib.Algorithms.Graph.Connectivity.Basic`, the `Fintype` and
 `DecidablePred` instances of a concrete graph have to be given by hand. -/
 
 section Examples
@@ -445,6 +548,7 @@ example : cycleG.bfsLayer 0 2 = {2} := by decide
 example : cycleG.bfsLayer 0 3 = ∅ := by decide
 example : cycleG.bfsReachableFinset 0 = {0, 1, 2} := by decide
 example : cycleG.bfsReachableFinset 3 = {3} := by decide
+example : cycleG.bfsLayers 0 = [{0}, {1}, {2}, ∅] := by decide
 example : cycleG.bfsDist 0 2 = 2 := by decide
 example : cycleG.bfsDist 2 1 = 2 := by decide
 example : cycleG.bfsDist 0 3 = ⊤ := by decide

@@ -19,8 +19,8 @@ development, which is split across `AlgoLib/Algorithms/Graph/Traversal/`:
 
 Undirected graphs are traversed through their symmetric orientation
 `SimpleGraph.toSimpleDiGraph`; the undirected wrappers `SimpleGraph.reachableFinset` and
-`SimpleGraph.computeDist` live in `AlgoLib.Theory.Graph.Connectivity.Computable`, next to
-the specifications they compute.
+`SimpleGraph.computeDist` live in `AlgoLib.Algorithms.Graph.Connectivity.Basic`, together
+with the rest of the executable connectivity layer.
 
 Depth-first search is not yet implemented.
 -/

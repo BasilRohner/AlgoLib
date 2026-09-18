@@ -1,0 +1,26 @@
+% Mirrors `AlgoLib.Algorithms.Graph.Connectivity.Basic`
+%
+\begin{definition}[Computable reachability and distance]
+  \label{def:reachable-finset}
+  \lean{AlgoLib.SimpleGraph.reachableFinset, AlgoLib.SimpleGraph.computeDist}
+  \leanok
+  \uses{def:bfs-layers, def:symmetric-orientation}
+  For a simple graph $G$ with finite vertex set and decidable edge membership, the set of
+  vertices reachable from $u$ and the distance $\dist(u, v)$ are computed by running
+  breadth-first search from $u$ in the symmetric orientation of $G$.
+\end{definition}
+
+\begin{theorem}[Correctness]
+  \label{thm:reachable-finset-correct}
+  \lean{AlgoLib.SimpleGraph.mem_reachableFinset_iff, AlgoLib.SimpleGraph.computeDist_eq}
+  \leanok
+  \uses{def:reachable-finset, def:reachable-directed, def:dist}
+  The computed set is exactly the set of vertices reachable from $u$, and the computed
+  distance is exactly $\dist(u, v)$.
+\end{theorem}
+\begin{proof}
+  \leanok
+  \uses{thm:bfs-correct}
+  Walks in $G$ and in its symmetric orientation are the same walks, so this is the
+  correctness of breadth-first search transported along that identification.
+\end{proof}
