@@ -4,6 +4,7 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Authors: Huang.JiangYi (co/ Claude Opus 5)
 -/
 import AlgoLib.Theory.Graph.Delete
+import AlgoLib.Theory.Graph.Degree
 import AlgoLib.Theory.Graph.Finite
 import AlgoLib.Util.Decidable
 
@@ -19,14 +20,20 @@ procedures*: adjacency becomes decidable, and the deletion operations of
 graph, so that a predicate about `G.deleteVertices S` is decidable whenever the
 corresponding predicate about `G` is.
 
-Reachability and connectedness are decided in `AlgoLib.Theory.Connectivity.Computable`,
-on top of what is here.
+Reachability and connectedness are decided in `AlgoLib.Algorithms.Graph.Connectivity.Basic`,
+on top of what is here and of the breadth-first search in
+`AlgoLib.Algorithms.Graph.Traversal.BFS`.
 
 ## Main results
 
-* `SimpleGraph.instDecidableRelAdj` — adjacency is decidable when edge membership is.
+* `SimpleGraph.instDecidableRelAdj`, `SimpleDiGraph.instDecidableRelAdj` — adjacency is
+  decidable when edge membership is.
+* `SimpleGraph.computeNeighborFinset`, `SimpleDiGraph.computeOutNeighborFinset` — the
+  neighbours, resp. out-neighbours, of a vertex as a `Finset`, identified with the
+  `Set`-valued neighbourhoods of `AlgoLib.Graph.Degree` by the `coe_compute…` lemmas.
 * Instances propagating `Fintype` on the vertex set and `DecidablePred` on the edge set
-  through `SimpleGraph.deleteEdges` and `SimpleGraph.deleteVertices`.
+  through `SimpleGraph.deleteEdges` and `SimpleGraph.deleteVertices`, and to the
+  symmetric orientation `SimpleGraph.toSimpleDiGraph`.
 * Instances stating the same data in the `V(·)` / `E(·)` notation, which is how the
   connectivity predicates are phrased.
 
@@ -106,10 +113,9 @@ beside `computeVertexFinset` in `AlgoLib.Graph.Finite` because it is exactly the
 `Finset` that decidable adjacency buys: the neighbours of `v` are the vertices the
 adjacency test accepts.
 
-TODO: once `AlgoLib.Graph.Degree` compiles, add
-`coe_computeNeighborFinset : ↑(G.computeNeighborFinset v) = G.neighborSet v`, and keep
-the `compute` prefix — `Degree.lean` reserves the plain name `neighborFinset` for the
-`[Finite V(G)]` variant. -/
+The `compute` prefix is kept deliberately — `Degree.lean` reserves the plain names
+`neighborSet` / `outNeighborSet` for the `Set`-valued specifications, and the
+`coe_compute…Finset` lemmas below identify the two. -/
 
 /-- The neighbours of `v` in `G`, as a `Finset`. -/
 def SimpleGraph.computeNeighborFinset (G : SimpleGraph α) [DecidableEq α]
@@ -126,6 +132,94 @@ lemma SimpleGraph.computeNeighborFinset_subset (G : SimpleGraph α) [DecidableEq
     [Fintype G.vertexSet] [DecidablePred (· ∈ G.edgeSet)] (v : α) :
     G.computeNeighborFinset v ⊆ G.computeVertexFinset :=
   Finset.filter_subset _ _
+
+/-- The computable neighbour finset is the neighbour set of `AlgoLib.Graph.Degree`. -/
+@[simp] lemma SimpleGraph.coe_computeNeighborFinset (G : SimpleGraph α) [DecidableEq α]
+    [Fintype G.vertexSet] [DecidablePred (· ∈ G.edgeSet)] (v : α) :
+    (G.computeNeighborFinset v : Set α) = G.neighborSet v :=
+  Set.ext fun u => by
+    rw [Finset.mem_coe, mem_computeNeighborFinset]
+    exact ⟨fun h => h.symm, fun h => h.symm⟩
+
+/-! ## The directed counterparts
+
+`SimpleDiGraph` gets the same bridge instances, decidable adjacency and an
+*out*-neighbour finset: these are exactly the data a breadth-first search consumes
+(`AlgoLib.Algorithms.Graph.Traversal.BFS`). -/
+
+/-- The `V(·)` counterpart of `SimpleGraph.mem_vertexSet_notation`. -/
+@[simp] lemma SimpleDiGraph.mem_vertexSet_notation (G : SimpleDiGraph α) {v : α} :
+    v ∈ (V(G) : Set α) ↔ v ∈ G.vertexSet := Iff.rfl
+
+/-- The `E(·)` counterpart of `SimpleGraph.mem_edgeSet_notation`. -/
+@[simp] lemma SimpleDiGraph.mem_edgeSet_notation (G : SimpleDiGraph α) {a : α × α} :
+    a ∈ (E(G) : Set (α × α)) ↔ a ∈ G.edgeSet := Iff.rfl
+
+/-- The `V(·)` spelling of `[Fintype G.vertexSet]`. -/
+instance SimpleDiGraph.instFintypeVertexSetNotation (G : SimpleDiGraph α)
+    [Fintype G.vertexSet] : Fintype (V(G) : Set α) :=
+  inferInstanceAs (Fintype G.vertexSet)
+
+/-- Membership in the vertex set is decidable once it is finite; see
+`SimpleGraph.instDecidablePredMemVertexSet` for why this is safe as an instance. -/
+instance SimpleDiGraph.instDecidablePredMemVertexSet (G : SimpleDiGraph α) [DecidableEq α]
+    [Fintype G.vertexSet] : DecidablePred (· ∈ G.vertexSet) :=
+  Set.decidableMemOfFintype _
+
+/-- The `V(·)` spelling of `SimpleDiGraph.instDecidablePredMemVertexSet`. -/
+instance SimpleDiGraph.instDecidablePredMemVertexSetNotation (G : SimpleDiGraph α)
+    [DecidableEq α] [Fintype G.vertexSet] : DecidablePred (· ∈ (V(G) : Set α)) :=
+  inferInstanceAs (DecidablePred (· ∈ G.vertexSet))
+
+/-- The `E(·)` spelling of `[DecidablePred (· ∈ G.edgeSet)]`. -/
+instance SimpleDiGraph.instDecidablePredMemEdgeSetNotation (G : SimpleDiGraph α)
+    [DecidablePred (· ∈ G.edgeSet)] : DecidablePred (· ∈ (E(G) : Set (α × α))) :=
+  inferInstanceAs (DecidablePred (· ∈ G.edgeSet))
+
+/-- Directed adjacency is decidable exactly when edge membership is: `G.Adj u v` is by
+definition `(u, v) ∈ E(G)`. -/
+instance SimpleDiGraph.instDecidableRelAdj (G : SimpleDiGraph α)
+    [DecidablePred (· ∈ G.edgeSet)] : DecidableRel G.Adj :=
+  fun u v => decidable_of_iff ((u, v) ∈ G.edgeSet) Iff.rfl
+
+/-- The out-neighbours of `v` in `G` — the targets of the arcs leaving `v` — as a
+`Finset`. -/
+def SimpleDiGraph.computeOutNeighborFinset (G : SimpleDiGraph α) [DecidableEq α]
+    [Fintype G.vertexSet] [DecidablePred (· ∈ G.edgeSet)] (v : α) : Finset α :=
+  G.computeVertexFinset.filter (G.Adj v ·)
+
+@[simp] lemma SimpleDiGraph.mem_computeOutNeighborFinset (G : SimpleDiGraph α)
+    [DecidableEq α] [Fintype G.vertexSet] [DecidablePred (· ∈ G.edgeSet)] {v u : α} :
+    u ∈ G.computeOutNeighborFinset v ↔ G.Adj v u := by
+  simp only [computeOutNeighborFinset, Finset.mem_filter, mem_computeVertexFinset]
+  exact ⟨And.right, fun h => ⟨h.right_mem, h⟩⟩
+
+lemma SimpleDiGraph.computeOutNeighborFinset_subset (G : SimpleDiGraph α) [DecidableEq α]
+    [Fintype G.vertexSet] [DecidablePred (· ∈ G.edgeSet)] (v : α) :
+    G.computeOutNeighborFinset v ⊆ G.computeVertexFinset :=
+  Finset.filter_subset _ _
+
+/-- The computable out-neighbour finset is the out-neighbour set of
+`AlgoLib.Graph.Degree`. -/
+@[simp] lemma SimpleDiGraph.coe_computeOutNeighborFinset (G : SimpleDiGraph α)
+    [DecidableEq α] [Fintype G.vertexSet] [DecidablePred (· ∈ G.edgeSet)] (v : α) :
+    (G.computeOutNeighborFinset v : Set α) = G.outNeighborSet v :=
+  Set.ext fun u => by rw [Finset.mem_coe, mem_computeOutNeighborFinset]; exact Iff.rfl
+
+/-! ## The symmetric orientation
+
+The data of a simple graph transfers to `SimpleGraph.toSimpleDiGraph`, whose vertex set
+is the same set and whose arc membership is edge membership of the unordered pair. -/
+
+/-- The symmetric orientation has the same, finite, vertex set. -/
+instance SimpleGraph.instFintypeVertexSetToSimpleDiGraph (G : SimpleGraph α)
+    [Fintype G.vertexSet] : Fintype G.toSimpleDiGraph.vertexSet :=
+  inferInstanceAs (Fintype G.vertexSet)
+
+/-- Arc membership in the symmetric orientation is decided by edge membership. -/
+instance SimpleGraph.instDecidablePredMemEdgeSetToSimpleDiGraph (G : SimpleGraph α)
+    [DecidablePred (· ∈ G.edgeSet)] : DecidablePred (· ∈ G.toSimpleDiGraph.edgeSet) :=
+  fun a => decidable_of_iff (s(a.1, a.2) ∈ G.edgeSet) Iff.rfl
 
 /-! ## Propagating the data through deletions -/
 

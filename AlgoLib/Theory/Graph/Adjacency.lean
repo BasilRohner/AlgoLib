@@ -81,6 +81,11 @@ some edge points from `u` to `v`. A loop at `v` is a self-arc. -/
 @[grind] def SimpleDiGraph.Adj (G : SimpleDiGraph α) (u v : α) : Prop :=
   (u, v) ∈ E(G)
 
+/-- Adjacency in the symmetric orientation of a simple graph is adjacency in the graph:
+there is an arc from `u` to `v` exactly when `s(u, v)` is an edge. -/
+@[simp] lemma SimpleGraph.adj_toSimpleDiGraph_iff (G : SimpleGraph α) {u v : α} :
+    G.toSimpleDiGraph.Adj u v ↔ G.Adj u v := Iff.rfl
+
 /-! ## Symmetry (undirected types) -/
 
 /-- Adjacency in a multigraph is symmetric. -/

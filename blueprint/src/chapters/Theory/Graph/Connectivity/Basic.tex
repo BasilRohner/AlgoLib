@@ -1,2 +1,36 @@
 % Mirrors `AlgoLib.Theory.Graph.Connectivity.*`
 %
+\subsection{Reachability and distance}
+% Mirrors `AlgoLib.Theory.Graph.Connectivity.Reachable` and
+% `AlgoLib.Theory.Graph.Connectivity.Directed`
+
+\begin{definition}[Reachability]
+  \label{def:reachable-directed}
+  \lean{AlgoLib.SimpleGraph.Reachable, AlgoLib.SimpleDiGraph.Reachable}
+  \leanok
+  Let $G$ be a simple graph or a simple directed graph. A vertex $v$ is \emph{reachable}
+  from $u$ if some walk realized in $G$ runs from $u$ to $v$. In the undirected case
+  reachability is an equivalence relation on $\V{G}$; in the directed case it is only a
+  preorder, since walks cannot be reversed.
+\end{definition}
+
+\begin{definition}[Symmetric orientation]
+  \label{def:symmetric-orientation}
+  \lean{AlgoLib.SimpleGraph.toSimpleDiGraph}
+  \leanok
+  The \emph{symmetric orientation} of a simple graph $G$ is the simple directed graph on
+  $\V{G}$ whose arcs are the ordered pairs $(u, v)$ with $\{u, v\} \in \E{G}$. A walk is
+  realized in $G$ exactly when it is realized in the symmetric orientation, so
+  reachability and distances agree.
+\end{definition}
+
+\begin{definition}[Distance]
+  \label{def:dist}
+  \lean{AlgoLib.SimpleDiGraph.dist, AlgoLib.SimpleGraph.dist}
+  \leanok
+  \uses{def:reachable-directed, def:symmetric-orientation}
+  The \emph{distance} $\dist(u, v) \in \N \cup \{\infty\}$ from $u$ to $v$ in a simple
+  directed graph is the least length of a walk from $u$ to $v$, and $\infty$ if $v$ is not
+  reachable from $u$. For a simple graph it is the distance in the symmetric orientation,
+  and is then symmetric in $u$ and $v$.
+\end{definition}

@@ -139,6 +139,16 @@ the result is `q`, whose head is that same vertex. -/
   · rfl
   · exact VertexSeq.tail_append _ _
 
+/-- Gluing adds the lengths: the duplicated joining vertex contributes no edge. -/
+@[simp] lemma length_glue (p q : SimpleWalk α) (h : p.val.tail = q.val.head) :
+    (p.glue q h).length = p.length + q.length := by
+  rw [SimpleWalk.glue]
+  split <;> rename_i hp
+  · simp [hp]
+  · change (p.val.dropTail.append q.val).length = p.val.length + q.val.length
+    rw [VertexSeq.length_append, ← VertexSeq.length_dropTail_succ p.val hp]
+    omega
+
 /-! ## reverse -/
 
 /-- Reverse a simple walk: the head becomes the tail and vice versa. Reversal
